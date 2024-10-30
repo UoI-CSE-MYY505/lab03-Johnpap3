@@ -1,0 +1,138 @@
+
+.globl rgb888_to_rgb565, rgb565_to_rgb888
+
+.data
+
+image888:
+    .byte 255, 0, 0
+    .byte 255, 85, 0
+    .byte 255, 170, 0
+    .byte 255, 255, 0
+    .byte 170, 255, 0
+    .byte 85, 255, 0
+    .byte 0, 255, 0
+    .byte 0, 255, 85
+    .byte 0, 255, 170
+    .byte 0, 255, 255
+    .byte 0, 170, 255
+    .byte 0, 85, 255
+    .byte 0, 0, 255
+    .byte 85, 0, 255
+    .byte 170, 0, 255
+    .byte 255, 0, 255
+    .byte 255, 0, 170
+    .byte 255, 0, 85
+    .byte 255, 0, 0
+    # ... Continue with image data ...
+
+image565:
+    .zero 512  # Allocate space
+
+image888_back:
+    .zero 512
+
+.text
+main:
+    la   a0, image888
+    la   a3, image565
+    li   a1, 19  # Width
+    li   a2, 6   # Height
+    jal  ra, rgb888_to_rgb565
+
+    la   a0, image565
+    la   a3, image888_back
+    li   a1, 19  # Width
+    li   a2, 6   # Height
+    jal  ra, rgb565_to_rgb888
+
+    addi a7, zero, 10
+    ecall
+
+# Corrected rgb888_to_rgb565 function
+rgb888_to_rgb565:
+    li   t0, 0 # row counter
+rowLoop_rgb888_to_rgb565:
+    bge  t0, a2, endRowLoop_rgb888_to_rgb565
+    li   t1, 0 # column counter
+columnLoop_rgb888_to_rgb565:
+    bge  t1, a1, endColumnLoop_rgb888_to_rgb565
+
+    # Load R, G, B values
+    lbu  t2, 0(a0)   # R
+    lbu  t3, 1(a0)   # G
+    lbu  t4, 2(a0)   # B
+
+    # Convert R
+    srli t5, t2, 3        # t5 = R >> 3 (5 bits)
+    slli t5, t5, 11       # Shift into bits 15-11
+
+    # Convert G
+    srli t6, t3, 2        # t6 = G >> 2 (6 bits)
+    slli t6, t6, 5        # Shift into bits 10-5
+
+    # Convert B
+    srli t7, t4, 3        # t7 = B >> 3 (5 bits)
+
+    # Combine R, G, B
+    or   t5, t5, t6       # Combine R and G
+    or   t5, t5, t7       # Combine with B
+
+    sh   t5, 0(a3)        # Store in RGB565 format
+
+    addi a0, a0, 3        # Next RGB888 pixel
+    addi a3, a3, 2        # Next RGB565 pixel
+    addi t1, t1, 1
+    j    columnLoop_rgb888_to_rgb565
+endColumnLoop_rgb888_to_rgb565:
+    addi t0, t0, 1
+    j    rowLoop_rgb888_to_rgb565
+endRowLoop_rgb888_to_rgb565:
+    ret
+
+# Corrected rgb565_to_rgb888 function
+rgb565_to_rgb888:
+    add t0, zero, zero # row counter
+rowl:
+    bge t0, a2, outRowl # if t0 >= rows, exit loop
+    add t1, zero, zero # column counter
+columnl:
+    bge t1, a1, outColumnl # if t1 >= columns, exit loop
+    lhu t2, 0(a0) # load 16-bit RGB565 value
+
+    # Extract red (bits 15-11)
+    srli t3, t2, 11 # t3 = t2 >> 11
+    andi t3, t3, 0x1F # t3 = t3 & 0x1F (5 bits red)
+    slli t4, t3, 3 # t4 = t3 << 3
+    srli t5, t3, 2 # t5 = t3 >> 2
+    or t3, t4, t5 # t3 = t4 | t5 (8-bit red)
+    sb t3, 0(a3) # store red
+
+    # Extract green (bits 10-5)
+    srli t4, t2, 5 # t4 = t2 >> 5
+    andi t4, t4, 0x3F # t4 = t4 & 0x3F (6 bits green)
+    slli t6, t4, 2 # t6 = t4 << 2
+    srli t7, t4, 4 # t7 = t4 >> 4
+    or t4, t6, t7 # t4 = t6 | t7 (8-bit green)
+    sb t4, 1(a3) # store green
+
+    # Extract blue (bits 4-0)
+    andi t5, t2, 0x1F # t5 = t2 & 0x1F (5 bits blue)
+    slli t6, t5, 3 # t6 = t5 << 3
+    srli t7, t5, 2 # t7 = t5 >> 2
+    or t5, t6, t7 # t5 = t6 | t7 (8-bit blue)
+    sb t5, 2(a3) # store blue
+
+    addi a0, a0, 2 # move input pointer to next pixel (2 bytes)
+    addi a3, a3, 3 # move output pointer to next pixel (3 bytes)
+    addi t1, t1, 1 # increment column counter
+    j columnl # repeat column loop
+outColumnl:
+    addi t0, t0, 1 # increment row counter
+    j rowl # repeat row loop
+outRowl:
+    jalr zero, ra, 0 # return from function
+  
+
+
+
+
